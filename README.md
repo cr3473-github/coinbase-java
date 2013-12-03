@@ -22,13 +22,16 @@ A java wrapper around the coinbase REST APIs
 - complete money request
 
 ### Usage:
-All work is done via the `CoinbaseApi` class. You can construct an instance of this class one of two ways:
+All work is done via the `CoinbaseApi` class. You can construct an instance of this class one of three ways:
 ```java
 //Constructs an instance of CoinbaseApi using OAuth
 CoinbaseApi api = new CoinbaseApi(clientId, clientSecret, redirectUrl);
 
 //Constructs an instance of CoinbaseApi using and api key
 CoinbaseApi api = new CoinbaseApi(apiKey);
+
+//Construct an instance of CoinbaseApi using OAuth, but providing an access token and refresh token up front
+Coinbase api = new CoinbaseApi(clientId, clientSecret, redirectUrl, accessToken, refreshToken);
 ```
 
 **OAuth:**
