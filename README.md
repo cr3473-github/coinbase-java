@@ -3,6 +3,7 @@ A java wrapper around the coinbase REST APIs
 
 ### Dependencies:
 - [google-gson](https://code.google.com/p/google-gson/)
+- [apache httpclient-4.3.1](http://hc.apache.org/httpclient-3.x/)
 
 ### Supported APIs
 - Authentication
