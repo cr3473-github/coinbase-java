@@ -30,7 +30,7 @@ CoinbaseApi api = new CoinbaseApi(clientId, clientSecret, redirectUrl);
 //Constructs an instance of CoinbaseApi using and api key
 CoinbaseApi api = new CoinbaseApi(apiKey);
 
-//Construct an instance of CoinbaseApi using OAuth, but providing an access token and refresh token up front
+//Constructs an instance of CoinbaseApi using OAuth, but providing an access token and refresh token up front
 Coinbase api = new CoinbaseApi(clientId, clientSecret, redirectUrl, accessToken, refreshToken);
 ```
 
