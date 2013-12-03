@@ -18,10 +18,22 @@ package com.createtank.payments.coinbase;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.*;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.util.EntityUtils;
 
+import javax.net.ssl.*;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -47,6 +59,75 @@ public class RequestClient {
 
     private static JsonObject call(CoinbaseApi api, String method, RequestVerb verb, Map<String, String> params,
                             boolean retry, String accessToken) throws IOException {
+        if (api.useApache()) {
+
+            HttpClient client = HttpClientBuilder.create().build();
+            String url = BASE_URL + method;
+            HttpUriRequest request = null;
+
+            if (verb == RequestVerb.POST || verb == RequestVerb.PUT) {
+                switch (verb) {
+                    case POST:
+                        request = new HttpPost(url);
+                        break;
+                    case PUT:
+                        request = new HttpPut(url);
+                        break;
+                    default:
+                        throw new RuntimeException("RequestVerb not implemented: " + verb);
+                }
+
+                List<BasicNameValuePair> paramsBody = new ArrayList<BasicNameValuePair>();
+
+                if (params != null) {
+                    List<BasicNameValuePair> convertedParams = convertParams(params);
+                    paramsBody.addAll(convertedParams);
+                }
+
+                ((HttpEntityEnclosingRequestBase) request).setEntity(new UrlEncodedFormEntity(paramsBody, "UTF-8"));
+            } else {
+                if (params != null) {
+                    url = url + "?" + createRequestParams(params);
+                }
+
+                if (verb == RequestVerb.GET) {
+                    request = new HttpGet(url);
+                } else if (verb == RequestVerb.DELETE) {
+                    request = new HttpDelete(url);
+                }
+            }
+            if (request == null)
+                return null;
+
+            if (accessToken != null)
+                request.addHeader("Authorization", String.format("Bearer %s", accessToken));
+            System.out.println("auth header: " + request.getFirstHeader("Authorization"));
+            HttpResponse response = client.execute(request);
+            int code = response.getStatusLine().getStatusCode();
+
+            if (code == 401) {
+                if (retry) {
+                    api.refreshAccessToken();
+                    call(api, method, verb, params, false, api.getAccessToken());
+                } else {
+                    throw new IOException("Account is no longer valid");
+                }
+            } else if (code != 200) {
+                throw new IOException("HTTP response " + code + " to request " + method);
+            }
+
+            String responseString = EntityUtils.toString(response.getEntity());
+            if(responseString.startsWith("[")) {
+                // Is an array
+                responseString = "{response:" + responseString + "}";
+            }
+
+            JsonParser parser = new JsonParser();
+            JsonObject resp = (JsonObject) parser.parse(responseString);
+            System.out.println(resp.toString());
+            return resp;
+        }
+
         String paramStr = createRequestParams(params);
         String url = BASE_URL + method;
 
@@ -107,6 +188,7 @@ public class RequestClient {
             if (count < size - 1) {
                 sb.append("&");
             }
+            count++;
         }
 
         return sb.toString();
@@ -141,5 +223,40 @@ public class RequestClient {
         }
 
         return sb.toString();
+    }
+
+    public static List<BasicNameValuePair> convertParams(Map<String, String> params) {
+        Set<Map.Entry<String, String>> entries = params.entrySet();
+        List<BasicNameValuePair> pairs = new ArrayList<BasicNameValuePair>();
+        for (Map.Entry<String, String> entry : entries) {
+            pairs.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
+        }
+
+        return pairs;
+    }
+
+    public static void disableCertificateValidation() {
+        // Create a trust manager that does not validate certificate chains
+        TrustManager[] trustAllCerts = new TrustManager[] {
+                new X509TrustManager() {
+                    public X509Certificate[] getAcceptedIssuers() {
+                        return new X509Certificate[0];
+                    }
+                    public void checkClientTrusted(X509Certificate[] certs, String authType) {}
+                    public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+                }};
+
+        // Ignore differences between given hostname and certificate hostname
+        HostnameVerifier hv = new HostnameVerifier() {
+            public boolean verify(String hostname, SSLSession session) { return true; }
+        };
+
+        // Install the all-trusting trust manager
+        try {
+            SSLContext sc = SSLContext.getInstance("SSL");
+            sc.init(null, trustAllCerts, new SecureRandom());
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+            HttpsURLConnection.setDefaultHostnameVerifier(hv);
+        } catch (Exception e) {}
     }
 }

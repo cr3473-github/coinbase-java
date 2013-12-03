@@ -18,7 +18,7 @@ package com.createtank.payments.coinbase.models;
 
 import com.google.gson.JsonObject;
 
-public class Address {
+public class Address implements IJsonSerializable {
     private String address;
     private String callbackUrl;
     private String label;
@@ -49,8 +49,26 @@ public class Address {
 
     public static Address fromJson(JsonObject json) {
         return new Address(json.get("address").getAsString(),
-                json.get("callback_url").getAsString(),
-                json.get("label").getAsString(),
-                json.get("created_at").getAsString());
+                json.has("callback_url") && !json.get("callback_url").isJsonNull() ?
+                        json.get("callback_url").getAsString() : null,
+                json.has("label") && !json.get("label").isJsonNull() ? json.get("label").getAsString() : null,
+                json.has("created_at") && !json.get("created_at").isJsonNull() ?
+                        json.get("created_at").getAsString() : null);
+    }
+
+    @Override
+    public JsonObject toJson() {
+        JsonObject json = new JsonObject();
+        json.addProperty("address", address);
+        if (callbackUrl != null)
+            json.addProperty("callback_url", callbackUrl);
+
+        if (label != null)
+            json.addProperty("label", label);
+
+        if (createdAt != null)
+            json.addProperty("created_at", createdAt);
+
+        return json;
     }
 }

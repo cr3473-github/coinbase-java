@@ -23,14 +23,22 @@ import com.createtank.payments.coinbase.models.User;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.util.EntityUtils;
 
+import javax.net.ssl.HttpsURLConnection;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class CoinbaseApi {
 
@@ -42,15 +50,18 @@ public class CoinbaseApi {
     private String accessToken;
     private String refreshToken;
     private String apiKey;
+    private boolean apache;
 
     public CoinbaseApi(String clientId, String clientSecret, String redirectUrl) {
         this.clientId = clientId;
         this.clientSecret = clientSecret;
         this.redirectUrl = redirectUrl;
+        apache = true;
     }
 
     public CoinbaseApi(String apiKey) {
         this.apiKey = apiKey;
+        apache = true;
     }
 
     //region accessors
@@ -77,6 +88,14 @@ public class CoinbaseApi {
     public String getApiKey() {
         return apiKey;
     }
+
+    public boolean useApache() {
+        return apache;
+    }
+
+    public void setApache(boolean apache) {
+        this.apache = apache;
+    }
     //endregion
 
     //region auth
@@ -87,14 +106,14 @@ public class CoinbaseApi {
      */
     public String generateOAuthUrl() {
         String baseUrl = OAUTH_BASE_URL + "/authorize";
-
+        String encodedUrl;
         try {
-            redirectUrl = URLEncoder.encode(redirectUrl, "UTF-8");
+            encodedUrl = URLEncoder.encode(redirectUrl, "UTF-8");
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
-        return baseUrl + "?response_type=code&client_id=" + clientId + "&redirect_uri=" + redirectUrl;
+        return baseUrl + "?response_type=code&client_id=" + clientId + "&redirect_uri=" + encodedUrl;
     }
 
     /**
@@ -105,19 +124,54 @@ public class CoinbaseApi {
      * @return whether or not authentication was successful
      * @throws IOException
      */
-    public boolean authenticate(String code)
-            throws IOException {
-        Map<String, String> params = new HashMap<String, String>();
-        params.put("grant_type", "authorization_code");
-        params.put("redirect_uri", redirectUrl);
-        params.put("code", code);
+    public boolean authenticate(String code) throws IOException {
+        RequestClient.disableCertificateValidation();
+        if (apache) {
+            System.out.println("Using default client");
+            List<BasicNameValuePair> params = new ArrayList<BasicNameValuePair>();
+            params.add(new BasicNameValuePair("grant_type", "authorization_code"));
+            params.add(new BasicNameValuePair("redirect_uri", redirectUrl));
+            params.add(new BasicNameValuePair("code", code));
 
-        return doTokenRequest(params, clientId, clientSecret);
+            return doTokenRequest(params);
+        } else {
+            Map<String, String> params = new HashMap<String, String>();
+            params.put("grant_type", "authorization_code");
+            params.put("redirect_uri", URLEncoder.encode(redirectUrl, "UTF-8"));
+            params.put("code", code);
+
+            return doTokenRequest(params);
+        }
     }
 
-    private boolean doTokenRequest(Map<String, String> params, String clientId, String clientSecret)
-            throws IOException {
+    private boolean doTokenRequest(Collection<BasicNameValuePair> params) throws IOException {
+        HttpClient client = HttpClientBuilder.create().build();
+        HttpPost post = new HttpPost(OAUTH_BASE_URL + "/token");
+        List<BasicNameValuePair> paramBody = new ArrayList<BasicNameValuePair>();
+        paramBody.add(new BasicNameValuePair("client_id", clientId));
+        paramBody.add(new BasicNameValuePair("client_secret", clientSecret));
+        paramBody.addAll(params);
+        post.setEntity(new UrlEncodedFormEntity(paramBody, "UTF-8"));
+        HttpResponse response = client.execute(post);
+        int code = response.getStatusLine().getStatusCode();
 
+        if (code == 401) {
+            return false;
+        } else if (code != 200) {
+            throw new IOException("Got HTTP response code " + code);
+        }
+        String responseString = EntityUtils.toString(response.getEntity());
+
+        JsonParser parser = new JsonParser();
+        JsonObject content = (JsonObject) parser.parse(responseString);
+        System.out.print("content: " + content.toString());
+        accessToken = content.get("access_token").getAsString();
+        refreshToken = content.get("refresh_token").getAsString();
+        return true;
+    }
+
+    private boolean doTokenRequest(Map<String, String> params)
+            throws IOException {
         Map<String, String> paramsBody = new HashMap<String, String>();
         paramsBody.put("client_id", clientId);
         paramsBody.put("client_secret", clientSecret);
@@ -125,7 +179,7 @@ public class CoinbaseApi {
 
         String bodyStr = RequestClient.createRequestParams(paramsBody);
         System.out.println(bodyStr);
-        HttpURLConnection conn = (HttpURLConnection) new URL(OAUTH_BASE_URL + "/token").openConnection();
+        HttpURLConnection conn = (HttpsURLConnection) new URL(OAUTH_BASE_URL + "/token").openConnection();
         conn.setRequestMethod("POST");
         conn.setDoOutput(true);
         OutputStreamWriter writer = new OutputStreamWriter(conn.getOutputStream());
@@ -144,6 +198,7 @@ public class CoinbaseApi {
 
         JsonParser parser = new JsonParser();
         JsonObject content = (JsonObject) parser.parse(response);
+        System.out.print("content: " + content.toString());
         accessToken = content.get("access_token").getAsString();
         refreshToken = content.get("refresh_token").getAsString();
         return true;
@@ -155,12 +210,21 @@ public class CoinbaseApi {
      * @return whether or not the refresh was successful.
      * @throws IOException
      */
-    public boolean refreshAccessToken() throws IOException {
-        Map<String, String> params = new HashMap<String, String>();
-        params.put("grant_type", "refresh_token");
-        params.put("refresh_token", refreshToken);
+    public boolean refreshAccessToken() throws IOException  {
 
-        return doTokenRequest(params, clientId, clientSecret);
+        if (apache) {
+            List<BasicNameValuePair> params = new ArrayList<BasicNameValuePair>();
+            params.add(new BasicNameValuePair("grant_type", "refresh_token"));
+            params.add(new BasicNameValuePair("refresh_token", refreshToken));
+
+            return doTokenRequest(params);
+        } else {
+            Map<String, String> params = new HashMap<String, String>();
+            params.put("grant_type", "refresh_token");
+            params.put("refresh_token", refreshToken);
+
+            return doTokenRequest(params);
+        }
     }
     //endregion
 
@@ -175,7 +239,7 @@ public class CoinbaseApi {
         if (apiKey != null)
             params.put("api_key", apiKey);
         JsonObject response = RequestClient.get(this, "users", params, accessToken);
-        return User.fromJson(response.get("users").getAsJsonArray().get(0).getAsJsonObject());
+        return User.fromJson(response.get("users").getAsJsonArray().get(0).getAsJsonObject().getAsJsonObject("user"));
     }
     //endregion
 
@@ -256,6 +320,7 @@ public class CoinbaseApi {
 
         JsonObject response = RequestClient.post(this, "account/generate_receive_address", params, accessToken);
         boolean success = response.get("success").getAsBoolean();
+        System.out.println(response.toString());
         return success ? Address.fromJson(response) : null;
     }
     //endregion
@@ -381,6 +446,10 @@ public class CoinbaseApi {
                                  String infoUrl, boolean isVariablePrice,
                                  boolean includeAddress, boolean includeEmail)
             throws IOException {
+
+        if (apache) {
+            throw new UnsupportedOperationException("the button apis are currently only supported with apache set to false");
+        }
 
         HttpURLConnection conn = (HttpURLConnection) new URL("https://coinbase.com/api/v1/buttons").openConnection();
         conn.setRequestMethod("POST");
