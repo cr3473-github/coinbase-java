@@ -59,6 +59,16 @@ public class CoinbaseApi {
         apache = true;
     }
 
+    public CoinbaseApi(String clientId, String clientSecret, String redirectUrl,
+                       String accessToken, String refreshToken) {
+        this.clientId = clientId;
+        this.clientSecret = clientSecret;
+        this.redirectUrl = redirectUrl;
+        this.accessToken = accessToken;
+        this.refreshToken = refreshToken;
+        apache = true;
+    }
+
     public CoinbaseApi(String apiKey) {
         this.apiKey = apiKey;
         apache = true;
