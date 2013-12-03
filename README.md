@@ -40,6 +40,10 @@ The first thing you need to do is generate an authentication URL. You can do thi
 
 ```java
 String authUrl = api.generateOAuthUrl();
+```
+Then, you need the user will need to use this url to obtain an authentication code. Once the code is in hand, to authenticate, simply do
+
+```java
 //get the auth code using the authUrl
 if (api.authenticate(code)) {
     //auth success
