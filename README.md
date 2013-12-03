@@ -48,3 +48,10 @@ if (api.authenticate(code)) {
 ```
 
 For information on coinbase's three-legged auth, see [here](https://coinbase.com/docs/api/authentication).
+
+**HttpClient vs. HttpURLConnection**
+By default, coinbase-java uses apache's HttpClient libraries for connections. If you are using a service such as Google App Engine that doesn't support these libraries, you can choose to use HttpURLConnection instead by doing
+
+```java
+api.setApache(false);
+```
