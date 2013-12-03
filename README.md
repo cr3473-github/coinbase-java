@@ -12,7 +12,6 @@ A java wrapper around the coinbase REST APIs
 - generate recieve address
 - buy
 - sell
-- buttons (no support for suggested pricing)
 - list transactions
 - get transaction details
 - send money
