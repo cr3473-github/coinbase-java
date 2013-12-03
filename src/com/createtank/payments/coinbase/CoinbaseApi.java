@@ -158,7 +158,7 @@ public class CoinbaseApi {
         Map<String, String> params = new HashMap<String, String>();
         if (apiKey != null)
             params.put("api_key", apiKey);
-        JsonObject response = RequestClient.get("users", params, accessToken);
+        JsonObject response = RequestClient.get(this, "users", params, accessToken);
         return User.fromJson(response.get("users").getAsJsonArray().get(0).getAsJsonObject());
     }
     //endregion
@@ -183,7 +183,7 @@ public class CoinbaseApi {
         if (query != null)
             params.put("query", query);
 
-        JsonObject response = RequestClient.get("addresses", params, accessToken);
+        JsonObject response = RequestClient.get(this, "addresses", params, accessToken);
         JsonArray addresses = response.getAsJsonArray("addresses");
         int size = addresses.size();
         Address[] result = new Address[size];
@@ -238,7 +238,7 @@ public class CoinbaseApi {
         if (apiKey != null)
             params.put("api_key", apiKey);
 
-        JsonObject response = RequestClient.post("account/generate_receive_address", params, accessToken);
+        JsonObject response = RequestClient.post(this, "account/generate_receive_address", params, accessToken);
         boolean success = response.get("success").getAsBoolean();
         return success ? Address.fromJson(response) : null;
     }
@@ -260,7 +260,7 @@ public class CoinbaseApi {
         params.put("qty", Float.toString(qty));
         params.put("agree_btc_amount_varies", Boolean.toString(true));
 
-        JsonObject response = RequestClient.post("buys", params, accessToken);
+        JsonObject response = RequestClient.post(this, "buys", params, accessToken);
         boolean success = response.get("success").getAsBoolean();
 
         return success ? Transfer.fromJson(response.getAsJsonObject("transfer")) : null;
@@ -281,7 +281,7 @@ public class CoinbaseApi {
         params.put("qty", Float.toString(qty));
         params.put("agree_btc_amount_varies", Boolean.toString(true));
 
-        JsonObject response = RequestClient.post("sells", params, accessToken);
+        JsonObject response = RequestClient.post(this, "sells", params, accessToken);
         boolean success = response.get("success").getAsBoolean();
 
         return success ? Transfer.fromJson(response.getAsJsonObject("transfer")) : null;
@@ -462,7 +462,7 @@ public class CoinbaseApi {
             params.put("api_key", apiKey);
 
         params.put("page", Integer.toString(page));
-        JsonObject response = RequestClient.get("transactions", params, accessToken);
+        JsonObject response = RequestClient.get(this, "transactions", params, accessToken);
         JsonArray transactionsJson = response.getAsJsonArray("transactions");
         Transaction[] transactions = new Transaction[transactionsJson.size()];
         for (int i = 0; i < transactionsJson.size(); ++i) {
@@ -489,7 +489,7 @@ public class CoinbaseApi {
      * @throws IOException
      */
     public Transaction getTransaction(String transactionId) throws IOException {
-        JsonObject response = RequestClient.get("transactions/" + transactionId, accessToken);
+        JsonObject response = RequestClient.get(this, "transactions/" + transactionId, accessToken);
         return Transaction.fromJson(response.getAsJsonObject("transaction"));
     }
 
@@ -518,7 +518,7 @@ public class CoinbaseApi {
         if (refererId != null)
             params.put("transaction[referrer_id]", refererId);
 
-        JsonObject response = RequestClient.post("transactions/send_money", params, accessToken);
+        JsonObject response = RequestClient.post(this, "transactions/send_money", params, accessToken);
 
         if (!response.get("success").getAsBoolean())
             return null;
@@ -603,7 +603,7 @@ public class CoinbaseApi {
         if (notes != null)
             params.put("transaction[notes]", notes);
 
-        JsonObject response = RequestClient.post("transactions/request_money", params, accessToken);
+        JsonObject response = RequestClient.post(this, "transactions/request_money", params, accessToken);
         if (!response.get("success").getAsBoolean())
             return null;
 
@@ -647,7 +647,7 @@ public class CoinbaseApi {
         if (apiKey != null)
             params.put("api_key", apiKey);
 
-        JsonObject response = RequestClient.put("transactions/" + requestId + "/resend_request",
+        JsonObject response = RequestClient.put(this, "transactions/" + requestId + "/resend_request",
                 params, accessToken);
 
         return response.get("success").getAsBoolean();
@@ -664,7 +664,7 @@ public class CoinbaseApi {
         if (apiKey != null)
             params.put("api_key", apiKey);
 
-        JsonObject response = RequestClient.delete("transactions/" + requestId + "/cancel_request",
+        JsonObject response = RequestClient.delete(this, "transactions/" + requestId + "/cancel_request",
                 params, accessToken);
 
         return response.get("success").getAsBoolean();
@@ -681,7 +681,7 @@ public class CoinbaseApi {
         if (apiKey != null)
             params.put("api_key", apiKey);
 
-        JsonObject response = RequestClient.put("transactions/" + requestId + "/complete_request",
+        JsonObject response = RequestClient.put(this, "transactions/" + requestId + "/complete_request",
                 params, accessToken);
 
         if (!response.get("success").getAsBoolean())
