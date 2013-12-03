@@ -23,12 +23,12 @@ public class RequestClient {
         DELETE
     }
 
-    private static JsonObject call(String method, RequestVerb verb, Map<String, String> params, String accessToken)
+    private static JsonObject call(CoinbaseApi api, String method, RequestVerb verb, Map<String, String> params, String accessToken)
             throws IOException {
-        return call(method, verb, params, true, accessToken);
+        return call(api, method, verb, params, true, accessToken);
     }
 
-    private static JsonObject call(String method, RequestVerb verb, Map<String, String> params,
+    private static JsonObject call(CoinbaseApi api, String method, RequestVerb verb, Map<String, String> params,
                             boolean retry, String accessToken) throws IOException {
         String paramStr = createRequestParams(params);
         String url = BASE_URL + method;
@@ -38,8 +38,6 @@ public class RequestClient {
 
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setRequestMethod(verb.name());
-        if (accessToken == null)
-            throw new IOException("Account is not valid");
 
         if (accessToken != null)
             conn.setRequestProperty("Authorization", String.format("Bearer %s", accessToken));
@@ -53,8 +51,16 @@ public class RequestClient {
         }
 
         int code = conn.getResponseCode();
+        if (code == 401) {
 
-        if (code != 200) {
+            if (retry) {
+                api.refreshAccessToken();
+                return call(api, method, verb, params, false, api.getAccessToken());
+            } else {
+                throw new IOException("Account is no longer valid");
+            }
+
+        } else if (code != 200) {
             throw new IOException("HTTP response " + code + " to request " + method);
         }
 
@@ -89,24 +95,24 @@ public class RequestClient {
         return sb.toString();
     }
 
-    public static JsonObject get(String method, String accessToken) throws IOException {
-        return call(method, RequestVerb.GET, null, accessToken);
+    public static JsonObject get(CoinbaseApi api, String method, String accessToken) throws IOException {
+        return call(api, method, RequestVerb.GET, null, accessToken);
     }
 
-    public static JsonObject get(String method, Map<String, String> params, String accessToken) throws IOException {
-        return call(method, RequestVerb.GET, params, accessToken);
+    public static JsonObject get(CoinbaseApi api, String method, Map<String, String> params, String accessToken) throws IOException {
+        return call(api, method, RequestVerb.GET, params, accessToken);
     }
 
-    public static JsonObject post(String method, Map<String, String> params, String accessToken) throws IOException {
-        return call(method, RequestVerb.POST, params, accessToken);
+    public static JsonObject post(CoinbaseApi api, String method, Map<String, String> params, String accessToken) throws IOException {
+        return call(api, method, RequestVerb.POST, params, accessToken);
     }
 
-    public static JsonObject put(String method, Map<String, String> params, String accessToken) throws IOException {
-        return call(method, RequestVerb.PUT, params, accessToken);
+    public static JsonObject put(CoinbaseApi api, String method, Map<String, String> params, String accessToken) throws IOException {
+        return call(api, method, RequestVerb.PUT, params, accessToken);
     }
 
-    public static JsonObject delete(String method, Map<String, String> params, String accessToken) throws IOException {
-        return call(method, RequestVerb.DELETE, params, accessToken);
+    public static JsonObject delete(CoinbaseApi api, String method, Map<String, String> params, String accessToken) throws IOException {
+        return call(api, method, RequestVerb.DELETE, params, accessToken);
     }
 
     public static String getResponseBody(InputStream is) throws IOException {
