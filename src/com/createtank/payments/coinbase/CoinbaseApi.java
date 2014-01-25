@@ -50,13 +50,13 @@ public class CoinbaseApi {
     private String accessToken;
     private String refreshToken;
     private String apiKey;
-    private boolean apache;
+    private boolean allowSecure;
 
     public CoinbaseApi(String clientId, String clientSecret, String redirectUrl) {
         this.clientId = clientId;
         this.clientSecret = clientSecret;
         this.redirectUrl = redirectUrl;
-        apache = true;
+        allowSecure = true;
     }
 
     public CoinbaseApi(String clientId, String clientSecret, String redirectUrl,
@@ -66,12 +66,12 @@ public class CoinbaseApi {
         this.redirectUrl = redirectUrl;
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
-        apache = true;
+        allowSecure = true;
     }
 
     public CoinbaseApi(String apiKey) {
         this.apiKey = apiKey;
-        apache = true;
+        allowSecure = true;
     }
 
     //region accessors
@@ -99,12 +99,12 @@ public class CoinbaseApi {
         return apiKey;
     }
 
-    public boolean useApache() {
-        return apache;
+    public boolean allowSecure() {
+        return allowSecure;
     }
 
-    public void setApache(boolean apache) {
-        this.apache = apache;
+    public void allowSecure(boolean allowSecure) {
+        this.allowSecure = allowSecure;
     }
     //endregion
 
@@ -136,7 +136,7 @@ public class CoinbaseApi {
      */
     public boolean authenticate(String code) throws IOException {
         RequestClient.disableCertificateValidation();
-        if (apache) {
+        if (allowSecure) {
             System.out.println("Using default client");
             List<BasicNameValuePair> params = new ArrayList<BasicNameValuePair>();
             params.add(new BasicNameValuePair("grant_type", "authorization_code"));
@@ -222,7 +222,7 @@ public class CoinbaseApi {
      */
     public boolean refreshAccessToken() throws IOException  {
 
-        if (apache) {
+        if (allowSecure) {
             List<BasicNameValuePair> params = new ArrayList<BasicNameValuePair>();
             params.add(new BasicNameValuePair("grant_type", "refresh_token"));
             params.add(new BasicNameValuePair("refresh_token", refreshToken));
