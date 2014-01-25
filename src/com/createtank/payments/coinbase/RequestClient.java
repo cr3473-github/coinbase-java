@@ -71,7 +71,7 @@ public class RequestClient {
         if (verb == RequestVerb.DELETE || verb == RequestVerb.GET) {
             throw new UnsupportedRequestVerbException();
         }
-        if (api.useApache()) {
+        if (api.allowSecure()) {
 
             HttpClient client = HttpClientBuilder.create().build();
             String url = BASE_URL + method;
@@ -161,7 +161,7 @@ public class RequestClient {
 
     private static JsonObject call(CoinbaseApi api, String method, RequestVerb verb, Map<String, String> params,
                             boolean retry, String accessToken) throws IOException {
-        if (api.useApache()) {
+        if (api.allowSecure()) {
 
             HttpClient client = HttpClientBuilder.create().build();
             String url = BASE_URL + method;

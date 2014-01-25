@@ -1,2 +1,3 @@
 com.createtank.payments.coinbase
+com.createtank.payments.coinbase.exceptions
 com.createtank.payments.coinbase.models
