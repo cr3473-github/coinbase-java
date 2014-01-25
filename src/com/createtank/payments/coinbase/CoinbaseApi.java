@@ -16,6 +16,7 @@ limitations under the License.
 
 package com.createtank.payments.coinbase;
 
+import com.createtank.payments.coinbase.exceptions.UnsupportedRequestVerbException;
 import com.createtank.payments.coinbase.models.Address;
 import com.createtank.payments.coinbase.models.Transaction;
 import com.createtank.payments.coinbase.models.Transfer;
@@ -454,39 +455,14 @@ public class CoinbaseApi {
                                  String desc, String custom, String callbackUrl, String successUrl, String cancelUrl,
                                  String infoUrl, boolean isVariablePrice,
                                  boolean includeAddress, boolean includeEmail)
-            throws IOException {
-
-        if (apache) {
-            throw new UnsupportedOperationException("the button apis are currently only supported with apache set to false");
-        }
-
-        HttpURLConnection conn = (HttpURLConnection) new URL("https://coinbase.com/api/v1/buttons").openConnection();
-        conn.setRequestMethod("POST");
-        conn.addRequestProperty("Content-Type", "application/json");
-        conn.setRequestProperty("Authorization", String.format("Bearer %s", accessToken));
-        conn.setDoOutput(true);
+            throws IOException, UnsupportedRequestVerbException {
 
         JsonObject jsonRequest = createButtonRequestJson(name, type, amount, currency, style, text, desc, custom, callbackUrl,
-                 successUrl, cancelUrl, infoUrl, isVariablePrice, includeAddress, includeEmail);
+                successUrl, cancelUrl, infoUrl, isVariablePrice, includeAddress, includeEmail);
 
-        OutputStreamWriter writer = new OutputStreamWriter(conn.getOutputStream());
-        writer.write(jsonRequest.toString());
-        writer.flush();
-        writer.close();
+        JsonObject resp = RequestClient.post(this, "buttons", jsonRequest, accessToken);
 
-        if (conn.getResponseCode() != 200) {
-            return null;
-        }
-        JsonParser parser = new JsonParser();
-        String responseBody = RequestClient.getResponseBody(conn.getInputStream());
-        System.out.println(responseBody);
-        JsonObject response = (JsonObject) parser.parse(responseBody);
-
-        /*if (!response.get("success").getAsBoolean()) {
-            return null;
-        }*/
-
-        return response.getAsJsonObject("button");
+        return resp != null && resp.has("button") ? resp.getAsJsonObject("button") : null;
     }
 
     /**
@@ -508,7 +484,7 @@ public class CoinbaseApi {
      */
     public JsonObject makeButton(String name, String amount, String currency, String type, String style, String text,
                                  String desc, String custom, String callbackUrl, String successUrl, String cancelUrl,
-                                 String infoUrl) throws IOException {
+                                 String infoUrl) throws IOException, UnsupportedRequestVerbException {
         return makeButton(name, amount, currency, type, style, text, desc, custom, callbackUrl, successUrl, cancelUrl,
                 infoUrl, false, false, false);
     }
@@ -521,7 +497,8 @@ public class CoinbaseApi {
      * @return Json response containing the button information
      * @throws IOException
      */
-    public JsonObject makeButton(String name, String amount, String currency) throws IOException {
+    public JsonObject makeButton(String name, String amount, String currency)
+            throws IOException, UnsupportedRequestVerbException {
         return makeButton(name, amount, currency, null, null, null, null, null, null, null, null, null);
     }
 
@@ -536,7 +513,7 @@ public class CoinbaseApi {
      * @throws IOException
      */
     public JsonObject makeButton(String name, String amount, String currency, String type, String custom)
-        throws IOException {
+            throws IOException, UnsupportedRequestVerbException {
         return makeButton(name, amount, currency, type, null, null, null, custom, null, null, null, null,
                 false, false, false);
     }

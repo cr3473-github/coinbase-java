@@ -16,12 +16,15 @@ limitations under the License.
 
 package com.createtank.payments.coinbase;
 
+import com.createtank.payments.coinbase.exceptions.UnsupportedRequestVerbException;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.*;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
@@ -52,9 +55,108 @@ public class RequestClient {
         DELETE
     }
 
-    private static JsonObject call(CoinbaseApi api, String method, RequestVerb verb, Map<String, String> params, String accessToken)
-            throws IOException {
+    private static JsonObject call(CoinbaseApi api, String method, RequestVerb verb, Map<String,
+            String> params, String accessToken) throws IOException {
         return call(api, method, verb, params, true, accessToken);
+    }
+
+    private static JsonObject call(CoinbaseApi api, String method, RequestVerb verb, JsonObject json,
+                                   String accessToken) throws IOException, UnsupportedRequestVerbException {
+        return call(api, method, verb, json,true, accessToken);
+    }
+
+    private static JsonObject call(CoinbaseApi api, String method, RequestVerb verb, JsonObject json,
+                                   boolean retry, String accessToken) throws IOException, UnsupportedRequestVerbException {
+
+        if (verb == RequestVerb.DELETE || verb == RequestVerb.GET) {
+            throw new UnsupportedRequestVerbException();
+        }
+        if (api.useApache()) {
+
+            HttpClient client = HttpClientBuilder.create().build();
+            String url = BASE_URL + method;
+            HttpUriRequest request;
+
+            switch (verb) {
+                case POST:
+                    request = new HttpPost(url);
+                    break;
+                case PUT:
+                    request = new HttpPut(url);
+                    break;
+                default:
+                    throw new RuntimeException("RequestVerb not implemented: " + verb);
+            }
+
+            ((HttpEntityEnclosingRequestBase) request).setEntity(new StringEntity(json.toString(), ContentType.APPLICATION_JSON));
+
+            if (accessToken != null)
+                request.addHeader("Authorization", String.format("Bearer %s", accessToken));
+
+            request.addHeader("Content-Type", "application/json");
+            HttpResponse response = client.execute(request);
+            int code = response.getStatusLine().getStatusCode();
+
+            if (code == 401) {
+                if (retry) {
+                    api.refreshAccessToken();
+                    call(api, method, verb, json, false, api.getAccessToken());
+                } else {
+                    throw new IOException("Account is no longer valid");
+                }
+            } else if (code != 200) {
+                throw new IOException("HTTP response " + code + " to request " + method);
+            }
+
+            String responseString = EntityUtils.toString(response.getEntity());
+            if(responseString.startsWith("[")) {
+                // Is an array
+                responseString = "{response:" + responseString + "}";
+            }
+
+            JsonParser parser = new JsonParser();
+            JsonObject resp = (JsonObject) parser.parse(responseString);
+            System.out.println(resp.toString());
+            return resp;
+        }
+
+        String url = BASE_URL + method;
+
+        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        conn.setRequestMethod(verb.name());
+        conn.addRequestProperty("Content-Type", "application/json");
+
+        if (accessToken != null)
+            conn.setRequestProperty("Authorization", String.format("Bearer %s", accessToken));
+
+
+        conn.setDoOutput(true);
+        OutputStreamWriter writer = new OutputStreamWriter(conn.getOutputStream());
+        writer.write(json.toString());
+        writer.flush();
+        writer.close();
+
+        int code = conn.getResponseCode();
+        if (code == 401) {
+
+            if (retry) {
+                api.refreshAccessToken();
+                return call(api, method, verb, json, false, api.getAccessToken());
+            } else {
+                throw new IOException("Account is no longer valid");
+            }
+
+        } else if (code != 200) {
+            throw new IOException("HTTP response " + code + " to request " + method);
+        }
+
+        String responseString = getResponseBody(conn.getInputStream());
+        if (responseString.startsWith("[")) {
+            responseString = "{response:" + responseString + "}";
+        }
+
+        JsonParser parser = new JsonParser();
+        return (JsonObject) parser.parse(responseString);
     }
 
     private static JsonObject call(CoinbaseApi api, String method, RequestVerb verb, Map<String, String> params,
@@ -140,7 +242,7 @@ public class RequestClient {
         if (accessToken != null)
             conn.setRequestProperty("Authorization", String.format("Bearer %s", accessToken));
 
-        if (verb != RequestVerb.GET && verb != RequestVerb.DELETE) {
+        if (verb != RequestVerb.GET && verb != RequestVerb.DELETE && paramStr != null) {
             conn.setDoOutput(true);
             OutputStreamWriter writer = new OutputStreamWriter(conn.getOutputStream());
             writer.write(paramStr);
@@ -195,19 +297,32 @@ public class RequestClient {
     }
 
     public static JsonObject get(CoinbaseApi api, String method, String accessToken) throws IOException {
-        return call(api, method, RequestVerb.GET, null, accessToken);
+        return call(api, method, RequestVerb.GET, (Map<String, String>) null, accessToken);
     }
 
-    public static JsonObject get(CoinbaseApi api, String method, Map<String, String> params, String accessToken) throws IOException {
+    public static JsonObject get(CoinbaseApi api, String method, Map<String, String> params, String accessToken)
+            throws IOException {
         return call(api, method, RequestVerb.GET, params, accessToken);
     }
 
-    public static JsonObject post(CoinbaseApi api, String method, Map<String, String> params, String accessToken) throws IOException {
+    public static JsonObject post(CoinbaseApi api, String method, Map<String, String> params, String accessToken)
+            throws IOException {
         return call(api, method, RequestVerb.POST, params, accessToken);
     }
 
-    public static JsonObject put(CoinbaseApi api, String method, Map<String, String> params, String accessToken) throws IOException {
+    public static JsonObject post(CoinbaseApi api, String method, JsonObject json, String accessToken)
+            throws IOException, UnsupportedRequestVerbException {
+        return call(api, method, RequestVerb.POST, json, accessToken);
+    }
+
+    public static JsonObject put(CoinbaseApi api, String method, Map<String, String> params, String accessToken)
+            throws IOException {
         return call(api, method, RequestVerb.PUT, params, accessToken);
+    }
+
+    public static JsonObject put(CoinbaseApi api, String method, JsonObject json, String accessToken)
+            throws IOException, UnsupportedRequestVerbException {
+        return call(api, method, RequestVerb.PUT, json, accessToken);
     }
 
     public static JsonObject delete(CoinbaseApi api, String method, Map<String, String> params, String accessToken) throws IOException {
@@ -257,6 +372,8 @@ public class RequestClient {
             sc.init(null, trustAllCerts, new SecureRandom());
             HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
             HttpsURLConnection.setDefaultHostnameVerifier(hv);
-        } catch (Exception e) {}
+        } catch (Exception e) {
+            //Ignore
+        }
     }
 }
