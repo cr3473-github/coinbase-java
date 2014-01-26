@@ -19,6 +19,7 @@ A java wrapper around the coinbase REST APIs
 - resend money request
 - cancel money request
 - complete money request
+- buttons
 
 ### Usage:
 All work is done via the `CoinbaseApi` class. You can construct an instance of this class one of three ways:
